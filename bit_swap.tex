@@ -1,0 +1,135 @@
+%%This is a very basic article template.
+%%There is just one section and two subsections.
+\documentclass{article}
+
+\usepackage{listings}
+
+\lstset{language=C++, tabsize=4}
+
+\begin{document}
+
+\title{std::bit\_swap and std::byte\_swap}
+\author{Klemens D. Morgenstern}
+\date{\today}
+
+\maketitle
+
+\newpage
+\section*{Abstract}
+
+This proposal introduces two functions to handle differences in endianess. Since
+this may be bit- as well as byte-endianess, two functions are proposed
+\textit{std::bit\_swap} and \textit{std::byte\_swap}
+
+\section{Problem}
+
+When dealing with lowlevel code, especially in embedded systems, the bit and
+byte endianess can become an issue. This is because of inter-device
+communication and direct access to the hardware. That is, hardware registers do not have to
+be the same as the processor endianess. To solve this issue functions are
+necessary.
+
+To use them efficiently with embedded system however, a view constraints have
+to be introduced.
+
+\section{Existing Solutions}
+Since the functionality are widely needed a few implementations for
+byte-swapping are available.
+
+\subsection{qendian.h} 
+The Qt framework provides functions to swap the byte-endianess. It does so by a
+simple for-loop as of Qt5.
+
+\subsection{Gcc}
+The Gnu compiler collection provides a header (byteswap.h) with macros to swap
+the bytes 16-, 32- and 64-bit values. They implement the conversion via shifting.
+Also the functions \lstinline {__builtin_bswap32} and
+\lstinline {__builtin_bswap32} are provided for the same reason. They however
+aim to use underlying compiler commands instead of just providing a perprocesser
+macro.
+\subsection{intrin.h}
+The MSVCompiler provides a header with several functions for byte-conversion,
+namely \lstinline {_byteswap_ushort}, \lstinline {_byteswap_ulong} and
+\lstinline {_byteswap_uint64}. They can be regared as similar to the GCC builtin
+functions.
+
+\subsection{Bit-Endianess}
+As for now implementations fore Byte-Endianess were shown, so the questions
+arises, why bit-endianess should be an issue. It is true, that only very obscure
+architecture acutally have a MSB bit-endianess. Though this is true,
+an embedded controller can always communicate with a wide variety of devices, which
+may include e.g. DSPs with a different structure. Hence it may be necessary to
+read data with an inverse bit-order from registers (e.g. a communcation buffer).
+There are however no intrinsic functions 
+
+\section{Proposal}
+
+The core proposal is two provide two functions,
+\begin{itemize}
+  \item \lstinline {std::bit_swap}
+  \item \lstinline {std::byte_swap}
+\end{itemize}
+for each integer type. Though they perform different tasks 
+
+\subsection{bit\_swap}
+The bit\_swap function shall take a reference to an integer type as argument and
+return a value with the same bits in the opposite order of the same type.
+\begin{lstlisting}
+std::uint16_t i = 0b1110001111100001;
+auto _i = std::bit_swap(i);
+assert(_i == 0b1000011111000111);
+\end{lstlisting}
+\subsection{byte\_swap}
+Thie byte\_swap function shall take a reference to an integer type as argument and
+return a value with the same bytes in the opposite order of the same type. The
+bit order in those bytes shall be the same as passed in.
+\begin{lstlisting}
+std::uint32_t i = 0xDEADBEEF;
+auto _i = std::byte_swap(i);
+assert(_i == 0xEFBEADDE);
+\end{lstlisting}
+\subsection{Behaviour}
+The functions shall take a const reference to the value passed in.
+It shall be possible to call all the functions with a volatile reference. In the
+case of a volatile reference it shall be guaranteed, that the operation is
+performed with one read from the passed reference. If this is not possible, the
+attempt to use a volatile reference shall result in a compiler-error.
+\section{Why in the standard?}
+For each added standard proposal, it is to answer why it should be a standard
+function. The first reason is, that this feature is highly needed on embedded
+systems, and thereby need support on many platforms.
+Additionally, those function my be implemented in pure C++, but may also make
+use of the processor properties.  Therefore this functionality while being very
+low-level is highly dependent on the target-architecture and therefore highly
+optimizable. This is much more efficiently done by the compiler and it's
+stnadard-library than by a library.
+
+\subsection{Architecture Instructions}
+For the proposed feature, we can look into machine architectures. The
+reason is, that we should assert the availability of the low-level operations on
+major architectures. This is not critical but helpful, when deciding if a
+standard-lib solution can do more than a manual implementation.
+\subsubsection{ARM}
+The ARM Architecture provides three instructions which concern this topic:\\
+
+\begin{tabular}{l | l}
+  \textit {REV} & Reverse byte order in a word.\\ 
+  \textit {REV16} & Reverse byte order in each halfword
+  independently.\\
+  \textit {RBIT} & Reverse the bit order in a 32-bit word.
+\end{tabular}\\
+
+That is we have the necessary functions via assembler, commands. Swapping a
+64-Bit Integer (be it by bits or bytes) is not doable in one task for the
+architecture. 
+\subsubsection{x86}
+The x86 Architecture only provide two instructions to swap the bytes:\\
+
+\begin{tabular}{l | l}
+  \textit{XCHG}  & Exchange data, i.e. swap bytes for a word.\\
+  \textit{BSWAP} & Reverses the byte order of a 32-bit register.
+\end{tabular}\\
+A bit inverse instruction is not available.
+ 
+
+\end{document}

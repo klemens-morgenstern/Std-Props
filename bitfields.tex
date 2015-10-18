@@ -1,0 +1,334 @@
+%%This is a very basic article template.
+%%There is just one section and two subsections.
+\documentclass{article}
+
+\usepackage{listings}
+\usepackage{color}
+\usepackage[margin=0.25in]{geometry}
+\usepackage{relsize}
+\lstset{language=C++, tabsize=4}
+\usepackage{amsmath}
+
+
+
+
+\begin{document}
+
+\title{Registers for C++}
+\author{Klemens D. Morgenstern}
+\date{\today}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+ \section*{Abstract}
+ 
+This paper proposes a new language feature, registers. Registers shall replace
+bitfields, which should be deprecated. It will thereby provide an easy and
+typesafe way to access bits in memory, while keeping the C++ semantics
+consistent. It will not introduce new keywords, but a reuse of the old
+``register'', which is already deprecated.
+
+\section{Problem}
+In current C++, there is not clear way how to access a compound of bits, if
+there is no standard type for that. This problem needs a solution, which allows
+the programmer to access a sequence of bits which should be modeled as different
+values with different types. There is no good solution for this problem, but it
+is especially necessary for embedded systems. Very view controllers have a
+low-level API which wraps around the hardware in a safe and perfomant matter, so
+much of this code has to be written. At the moment there are two used solutions
+for this problems.
+
+\subsection{Bitfields}
+A popular solution are the C-Bitfields, which are members of compound types:
+\begin{lstlisting}
+struct bitfield
+{
+	int x : 14;
+	unsigned y : 12;
+};
+\end{lstlisting}
+The problem with this approach is, that the standard doesn't enforce any
+aligment, i.e. the compiler may put the bits wherever it pleases. This is on
+purpose, since bitfields were introduced to allow the saving of memory. This now
+makes the bitfield utterly useless for hardware-access.
+The logic of a bitfield is, that a bitfield is a non-addressable member of any
+compound type. Therefore there is no given guarantee for any alignment and the
+existance of a bitfield has no effect on the struture. It is basicly just a way
+to express, that a member is smaller than it's type. 
+This is confusing and inconsistent, since no member-pointers can be used for the
+bitfields which behave like regular members in other use cases. 
+If this proposal gets approved, bitfields used for the implemention of
+hardware-register access can easily be migrated to registers. Bitfields used in
+other classes, i.e. a mixed style, can and should be changed into regular
+members. Hence Bitfiels should be deprecated.
+\subsection{Masking \& Shifting}
+The more popular approach is to introduce masks and offsets, which are constant
+expressions. 
+An example would look like this:
+\begin{lstlisting}
+//old value
+old_value = (MASK & some_register) >> OFFSET ;
+//write
+some_register = (~MASK & some_register) 
+			  | (new_value << OFFSET);  
+\end{lstlisting}
+The example, despite getting no error for using the wrong mask or offset,
+works with pure integral-values. Hence no type-safety (as for example
+introduced by \lstinline {enum class}) is provided.
+This approach is unsafe in several ways and rather hard to read.
+It could be tweaked by using more elaborate preprocessor-constructions, but that
+would make it even more error-prone.
+It is performant, but very hard to debug and write correctly, so that is has to
+be considered quite unsafe.
+\section{Solution}
+The solution is to introduce a new language feature, called register. The
+syntax shall look like this:
+
+\begin{lstlisting}
+register my_reg
+{
+	int i : 12;
+	int j : 11;
+};
+\end{lstlisting}
+This looks familiar and only the use of  the \lstinline {register} keyword is
+new.
+\subsection{Basic rules}
+A register will alway use an underlying integer-type, \lstinline {int} if not
+specified otherwise. It can also be converted to the underlying type by using a
+\lstinline {static_cast} et vice versa.
+When writing an element of the register, it gives a guarantee, that the
+underlying memory is written exactly once, though it maybe read several times.
+This is because the register is ment to be access the direct hardware. With
+undefined states in between it can yield unexpected behaviour.
+For a volatile access of the register, only one read is allowed, be it for
+writing or for reading. 
+If this cannot be guaranteed for a type (e.g. using a 64-bit int on a 32-Bit
+machine) an error shall be provided.
+\subsection{Underlying Type}
+The underlying type maybe statet explicitly, as for an enumerator. If none is
+declared int is used.
+\begin{lstlisting}
+register my_reg : unsigned long long
+{
+	int  : 24;
+	int x : 12;
+};
+\end{lstlisting}
+Exceeding the size of the underlying type by the element definition shall yield
+an error.
+%\newpage
+\subsection{Member types}
+Every type that can be reduced to an integral value shall be a valid type for a
+register. Those types can be mixed with no effect for the alignment. 
+Additionally, using a bool in a register shall always result in the bool using
+one bit. That is the following code is completly valid:
+
+\begin{lstlisting}[label=lst:cplx]
+enum class some_enum { x,y,z};
+
+register reg : std::uint16_t
+{
+	some_enum se : 3;
+	unsigned char uc : 2;
+	bool b ; //one bit
+	int i : 10 ;	
+};
+\end{lstlisting}
+
+\subsection{Unnamed members}
+Similar to C-Bitfields, unnamed members shall be allowed, to implement a
+padding.
+Additionally, an unnamed member may have a size of zero. The size will pad the
+current bit-position up to the next position of a full byte, i.e. a multiple of
+8.
+\begin{lstlisting}
+register reg : std::uin16_t
+{
+	int i : 2;
+	int : 2 ;
+	int j : 2;
+	int : 0 ;
+	int k : 3;
+};
+\end{lstlisting}
+
+\begin{tabular}{lclllllllclllllll}
+\hline
+\multicolumn{1}{|l|}{Bit}   & \multicolumn{1}{r|}{0} & \multicolumn{1}{r|}{1} & \multicolumn{1}{r|}{2} & \multicolumn{1}{r|}{3} & \multicolumn{1}{r|}{4} & \multicolumn{1}{r|}{5} & \multicolumn{1}{r|}{6} & \multicolumn{1}{r|}{7} & \multicolumn{1}{r|}{8} & \multicolumn{1}{r|}{9} & \multicolumn{1}{r|}{10} & \multicolumn{1}{r|}{11} & \multicolumn{1}{r|}{12} & \multicolumn{1}{r|}{13} & \multicolumn{1}{r|}{14} & \multicolumn{1}{r|}{15} \\ \hline
+\multicolumn{1}{|l|}{Byte}  & \multicolumn{8}{c|}{0}                                                                                                                                                                                & \multicolumn{8}{c|}{1}                                                                                                                                                                                      \\ \hline
+\multicolumn{1}{|l|}{Usage} & \multicolumn{2}{c|}{i}                          & \multicolumn{2}{c|}{/}                          & \multicolumn{2}{c|}{j}                          & \multicolumn{2}{c|}{/}                          & \multicolumn{3}{c|}{k}                                                    & \multicolumn{5}{c|}{\textit{/}}                                                                                                 \\ \hline
+                            & \multicolumn{1}{l}{}   &                        &                        &                        &                        &                        &                        &                        & \multicolumn{1}{l}{}   &                        &                         &                         &                         &                         &                         &                        
+\end{tabular}
+
+\subsection{Signed Interpretation}
+
+The interpretation of signed elements in registers follows the same rules as for
+bitfields. If the value is signed it is interpreted as a two's complement.
+
+That is, given a element with 3 bits, which has the value \lstinline {0b101}
+will be converted into a \lstinline {unsigned char} of the value \lstinline
+{0b11111101}.
+
+\subsection{Class rules}
+Unlike enumerators, a register can be interpreted as a form of class. Hence the
+proposal is, to apply the same rules as for POD-structs. That is, to enforce
+them.
+\subsection{Bit-Endianess}
+The bit-order of the register shall be according to the endianess of the
+target-platform. That is the first entry always starts with the lowest bit of
+the underlying type.
+\begin{lstlisting}
+register r : unsigned char
+{
+	bool b;
+	int : 7;
+};
+r r1;
+r1.b = true;
+\end{lstlisting}
+This would yield the following:
+
+\begin{itemize}
+  \item LSB : \lstinline {00000001}
+  \item MSB : \lstinline {10000000}
+\end{itemize}
+Which of course means, that the value representation in C++ will be 0b10000000.
+\subsection{Byte-Endianess}
+The byte-endianess shall cause the bytes of the register to be aligned as it
+would be expected when using the integer with shift operators.
+The following code
+\begin{lstlisting}
+register r : std::uint16_t
+{
+	int l : 8;
+	int h : 8;
+};
+r r1;
+r1.l = 0xBE;
+r1.h = 0xEF;
+\end{lstlisting}
+would yield
+\begin{itemize}
+  \item Big-Endian 	  : \lstinline {0xBE, 0xEF}
+  \item Little-Endian : \lstinline {0xEF, 0xBE}
+\end{itemize} 
+Which of course has the C++-representation of 0xBEEF. 
+\subsection{Initialization}
+The initialization shall be similar to the one of POD types.
+Aggregate initialization shall also include the unnamed members. 
+\begin{lstlisting}
+register reg : std::uint32_t
+{
+	int i : 12;
+	int  : 3; //j
+	int k : 5;
+	int : 2; //l
+}
+
+reg r {42, //reg.i
+		1, //reg.l
+		3  //reg.k
+		2};//reg.l
+\end{lstlisting}
+This is because an anonym member of a register is exactly this: an element which
+cannot be accessed, because it has no name. Hence it exists in all accesses to
+the structure which do not need a name. This does however not apply to the empty
+space at the end of the register. In the example the register has a size of 32
+Bits, but uses 22 of them. The other 10 Bits are not used and are not a unnamed
+element. 
+If one does not want to initialize the unnamed registers, the explicit struct
+initialization of C99 can be used:
+\begin{lstlisting}
+reg r2 { .i = 42, .k = 3};
+\end{lstlisting}
+In the latter case, all not-initialized members are in an undefined state.
+
+The aggregate initialization is implicitly constexpr, which allows the check of
+the register definitions by simple static assertions, i.e.:
+\begin{lstlisting}
+static_assert(reg{0,0,0b11111,0} == (0b11111 << 15));  
+\end{lstlisting}
+\subsection{Member Pointers}
+It is quite simply possible to create function pointers for registers. They have
+to hold two values, the offset and the length, and can thereby access the
+register-element. 
+\subsection{Deprecate Bitfields}
+Bitfields are a language feature, that is inherited from C. It does not work
+well with C++, in Fact is breaks consitency. This is because bitfields are not
+addressable, yet can be members in any class.
+Since this register proposal brings forth a language feature which
+solves the problem bitfields was designed for, bitfields can be deprecated.
+Additionally, if introduction register member pointers, all elements of compound
+datatypes will have a working member-pointer solution, which is not the case for
+bitfields.
+
+\newpage
+\section{Why a language feature and not a library?}
+This question might be posed, because adding a language feature, as simple as it
+might be, always make the language more complex. However, building a library
+to implement this sort of thing is rather complicated, since we it should
+have no overhead. Implementing these features in the compiler on the other hand
+seems doable, since most of the necessary features are already present.
+
+The only realiable C++ implementation is to use plain functions. All
+other possibilites in involving classes are not realiable, because we might get
+padding. Using plain functions renders them unsafe, since the argument will
+always be a integral type. So the type-safety is lost.
+
+Consider the following comparison:
+
+\textbf{Register Solution}
+\begin{lstlisting}
+register my_reg : std::uint8_t
+{
+	char : 2;
+	char i : 4;
+};
+my_reg r;
+r.i = -2; 
+// my_reg.i is now 0b1110 .
+char c = i;
+//c now has the value 0b11111110 
+\end{lstlisting}
+
+\textbf{Function Solution}
+
+\begin{lstlisting}
+void set_i(volatile std::uint8_t & reg, char i)
+{
+	//    mask the register | mask i  | shift to pos
+	reg = (reg & ~0b111100) | ((i & 0b1111) << 2);
+}
+char i get_i(const volatile std::uint8_t & reg)
+{
+	//       mask the bits     | shift to pos
+	char i = (reg & 0b111100) >> 2;
+	// now we need to add the sign
+	if (i & 0b1000) i |= 0b11110000;
+	return i;
+};
+\end{lstlisting}
+
+This of course can be tweaked by using constexpr-functions to generate the
+masks and perform the shift-operations. This however does not change the core
+problem: it is a lot of unsafe code. This is especially critical, because there
+is no method to get error messages.
+Having a register solution, which´s correctness
+can be checked by a static\_assert is therefor a huge improvement.
+% 
+% \newpage
+% \section{Changes to the standard}
+% The basis is N4296.
+% \subsection{Deprecation of Bitfields}
+% 
+% Move Section 9.6 to the Appendix D.  
+% 
+% 
+% \subsection{Register Specification}
+% \input{standard.tex}
+
+\end{document}
