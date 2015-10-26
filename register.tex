@@ -23,7 +23,7 @@
 \tableofcontents
 \newpage
 
- \section*{Abstract}
+\section*{Abstract}
  
 This paper proposes a new language feature, registers. Registers shall replace
 bitfields, which should be deprecated. It will thereby provide an easy and
@@ -40,7 +40,8 @@ is especially necessary for embedded systems. Very view controllers have a
 low-level API which wraps around the hardware in a safe and perfomant matter, so
 much of this code has to be written. At the moment there are two used solutions
 for this problems.
-
+It should also be remarked, that this is often also required to access a
+part of the memory with a fixed address. Hence having no byte-offset is crucial. 
 \subsection{Bitfields}
 A popular solution are the C-Bitfields, which are members of compound types:
 \begin{lstlisting}
@@ -320,7 +321,7 @@ always be a integral type. So the type-safety is lost.
 
 Consider the following comparison:
 
-\textbf{Register Solution}
+\subsection{Register Solution}
 \begin{lstlisting}
 register my_reg : std::uint8_t
 {
@@ -334,7 +335,7 @@ char c = i;
 //c now has the value 0b11111110 
 \end{lstlisting}
 
-\textbf{Function Solution}
+\subsection{Function Solution}\label{sec:fun_sol}
 
 \begin{lstlisting}
 void set_i(volatile std::uint8_t & reg, char i)
@@ -351,12 +352,39 @@ char i get_i(const volatile std::uint8_t & reg)
 	return i;
 };
 \end{lstlisting}
-
 This of course can be tweaked by using constexpr-functions to generate the
 masks and perform the shift-operations. This however does not change the core
 problem: it is a lot of unsafe code. This is especially critical, because there
 is no method to get error messages.
 Having a register solution, which´s correctness
 can be checked by a static\_assert is therefor a huge improvement.
+
+\subsection{Object Solution}
+Now it might seem, that we could use a class construction, but this comes with a
+few problems. In order to access the value we can put it into a member-variable,
+that is like the following:
+\begin{lstlisting}
+struct register_t
+{
+	std::uint16_t value;
+	//access members
+}; 
+\end{lstlisting} 
+The first way to implement this is to use the functions given in
+\ref{sec:fun_sol} as member-functions. This would be similar and also have the
+problem of being very verbose and error-prone.\\
+A better solution would be to implement the member-access via a
+property-class template. The problem here is that such a class template would
+need to hold a reference to the actual value. This would require unnecessary
+memory and introduce an additional indirection.\\
+To solve that, we could pass a pointer to the required address as a template
+parameter. This would be fast, but then the struct could not be copied.\\
+A last and very strange solution is, to put the register value inside a union
+with the properties. Then the properties can cast the this-pointer and access
+this to the register value. This would work, since the values of the union all
+exist in the same memory. This is however a bad solution and requires a lot of
+\lstinline {reinterpret_cast}s.
+
+  
 
 \end{document}
