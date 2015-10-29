@@ -10,7 +10,7 @@
 \usepackage{amsmath}
 
 
-
+ 
 
 \begin{document}
 
@@ -32,16 +32,17 @@ consistent. It will not introduce new keywords, but a reuse of the old
 ``register'', which is already deprecated.
 
 \section{Problem}
-In current C++, there is not clear way how to access a compound of bits, if
-there is no standard type for that. This problem needs a solution, which allows
+In current C++, there is not clear way how to access a fixed structure of bits,
+if there is no standard type for that. This problem needs a solution, which allows
 the programmer to access a sequence of bits which should be modeled as different
-values with different types. There is no good solution for this problem, but it
-is especially necessary for embedded systems. Very view controllers have a
-low-level API which wraps around the hardware in a safe and perfomant matter, so
-much of this code has to be written. At the moment there are two used solutions
+values with different types. This is especially necessary for embedded systems. 
+Very view controllers have a low-level API which wraps around the hardware in a 
+safe and perfomant matter, so much of this code has to be written. At the moment there are two used solutions
 for this problems.
 It should also be remarked, that this is often also required to access a
-part of the memory with a fixed address. Hence having no byte-offset is crucial. 
+part of the memory with a fixed address. Hence having no byte-offset is crucial.
+Additionally, this kind of problem also occurs when writing low-level
+communication, where reducing the bit-size is crucial.
 \subsection{Bitfields}
 A popular solution are the C-Bitfields, which are members of compound types:
 \begin{lstlisting}
@@ -52,15 +53,17 @@ struct bitfield
 };
 \end{lstlisting}
 The problem with this approach is, that the standard doesn't enforce any
-aligment, i.e. the compiler may put the bits wherever it pleases. This is on
-purpose, since bitfields were introduced to allow the saving of memory. This now
-makes the bitfield utterly useless for hardware-access.
-The logic of a bitfield is, that a bitfield is a non-addressable member of any
-compound type. Therefore there is no given guarantee for any alignment and the
-existance of a bitfield has no effect on the struture. It is basicly just a way
-to express, that a member is smaller than it's type. 
+aligment, i.e. the compiler may put the bits in an undefined order with
+undefined padding bits in-between.
+This is on purpose, since bitfields were introduced to allow the saving of memory. But this
+makes the bitfield utterly useless for hardware-access, if no additional
+compiler extension is used (e.g. \lstinline {__attribute__((packed))} for gcc).
+A bitfield is a non-addressable member of any compound type. 
+Therefore there is no given guarantee for any alignment and the existance of a bitfield has no effect on the struture. 
+It is basicly just a way to express, that a member may be smaller than it's
+type.
 This is confusing and inconsistent, since no member-pointers can be used for the
-bitfields which behave like regular members in other use cases. 
+bitfields which behave like regular members in all other use cases. 
 If this proposal gets approved, bitfields used for the implemention of
 hardware-register access can easily be migrated to registers. Bitfields used in
 other classes, i.e. a mixed style, can and should be changed into regular
@@ -95,7 +98,7 @@ register my_reg
 	int j : 11;
 };
 \end{lstlisting}
-This looks familiar and only the use of  the \lstinline {register} keyword is
+This looks familiar and only the use of the \lstinline {register} keyword is
 new.
 \subsection{Basic rules}
 A register will alway use an underlying integer-type, \lstinline {int} if not
@@ -105,12 +108,19 @@ When writing an element of the register, it gives a guarantee, that the
 underlying memory is written exactly once, though it maybe read several times.
 This is because the register is ment to be access the direct hardware. With
 undefined states in between it can yield unexpected behaviour.
-For a volatile access of the register, only one read is allowed, be it for
+For a volatile access of the register, only one access is allowed, be it for
 writing or for reading. 
 If this cannot be guaranteed for a type (e.g. using a 64-bit int on a 32-Bit
 machine) an error shall be provided.
+
+This mechanic is needed, when reading a hardware register, because it may change
+anytime. That is, a way to obtain consistent data is necessary. C++
+provides atomics in the form of a library, but they would be rather hard to use
+with custom types.
+Additionally, the intent of volatile is exactly the one described here.
 \subsection{Underlying Type}
-The underlying type maybe statet explicitly, as for a strongly-typed enumerator.
+The underlying type maybe statet explicitly, like for strongly-typed
+enumerators.
 If none is declared int is used.
 \begin{lstlisting}
 register my_reg : unsigned long long
@@ -123,9 +133,9 @@ Exceeding the size of the underlying type by the element definition shall yield
 an error.\\
 A register, as well as a reference or a pointer to a register, may be converted
 to the underlying type (or a reference or pointer) to the underlying type via a
-static_cast. There is no implicit conversion, so a register cannot use an
-operator of the underlying type.
-It may of course implement it's own operators.
+\lstinline{static_cast}. There is no implicit conversion, so a register cannot
+use an operator of the underlying type.
+It may of course have it's own operators.
 %\newpage
 \subsection{Member types}
 Every type that can be reduced to an integral value shall be a valid type for a
@@ -162,12 +172,11 @@ register reg : std::uin16_t
 };
 \end{lstlisting}
 
-\begin{tabular}{lclllllllclllllll}
-\hline
-\multicolumn{1}{|l|}{Bit}   & \multicolumn{1}{r|}{0} & \multicolumn{1}{r|}{1} & \multicolumn{1}{r|}{2} & \multicolumn{1}{r|}{3} & \multicolumn{1}{r|}{4} & \multicolumn{1}{r|}{5} & \multicolumn{1}{r|}{6} & \multicolumn{1}{r|}{7} & \multicolumn{1}{r|}{8} & \multicolumn{1}{r|}{9} & \multicolumn{1}{r|}{10} & \multicolumn{1}{r|}{11} & \multicolumn{1}{r|}{12} & \multicolumn{1}{r|}{13} & \multicolumn{1}{r|}{14} & \multicolumn{1}{r|}{15} \\ \hline
-\multicolumn{1}{|l|}{Byte}  & \multicolumn{8}{c|}{0}                                                                                                                                                                                & \multicolumn{8}{c|}{1}                                                                                                                                                                                      \\ \hline
-\multicolumn{1}{|l|}{Usage} & \multicolumn{2}{c|}{i}                          & \multicolumn{2}{c|}{/}                          & \multicolumn{2}{c|}{j}                          & \multicolumn{2}{c|}{/}                          & \multicolumn{3}{c|}{k}                                                    & \multicolumn{5}{c|}{\textit{/}}                                                                                                 \\ \hline
-                            & \multicolumn{1}{l}{}   &                        &                        &                        &                        &                        &                        &                        & \multicolumn{1}{l}{}   &                        &                         &                         &                         &                         &                         &                        
+\begin{tabular}{l|cccccccccccccccc|}
+Bit   & 0  & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 & 13 & 14 & 15\\\hline 
+Byte  & \multicolumn{8}{c|}{0} & \multicolumn{8}{c|}{1} \\\hline                                                                                                           
+Usage & \multicolumn{2}{c|}{i} & \multicolumn{2}{c|}{/} & \multicolumn{2}{c|}{j}
+& \multicolumn{2}{c|}{/}  & \multicolumn{3}{c|}{k} & \multicolumn{5}{c|}{/} 
 \end{tabular}
 
 \subsection{Signed Interpretation}
@@ -178,10 +187,10 @@ bitfields. If the value is signed it is interpreted as a two's complement.
 That is, given a element with 3 bits, which has the value \lstinline {0b101}
 will be converted into a \lstinline {unsigned char} of the value \lstinline
 {0b11111101}.
-
+This is similar to the current implementation of bitfields.
 \subsection{Class rules}
-Unlike enumerators, a register can be interpreted as a form of class. Hence the
-proposal is, to apply the same rules as for POD-structs.
+Unlike enumerators, a register can be interpreted as a form of class.
+Hence the proposal is, to apply the same rules as for POD-structs.
 That is in short: a register may not have custom constructors or destructors,
 not virtual functions and no custom assign operation. It may however have
 member-functions and operators.
@@ -204,7 +213,8 @@ This would yield the following:
   \item LSB : \lstinline {00000001}
   \item MSB : \lstinline {10000000}
 \end{itemize}
-Which of course means, that the value representation in C++ will be 0b10000000.
+Which of course means, that the value representation in C++ will be 0b10000000,
+not the representation on the machine itself.
 \subsection{Byte-Endianess}
 The byte-endianess shall cause the bytes of the register to be aligned as it
 would be expected when using the integer with shift operators.
@@ -224,7 +234,7 @@ would yield
   \item Big-Endian 	  : \lstinline {0xBE, 0xEF}
   \item Little-Endian : \lstinline {0xEF, 0xBE}
 \end{itemize} 
-Which of course has the C++-representation of 0xBEEF. 
+Which of course has the C++-representation of 0xBEEF in both cases. 
 \subsection{Initialization}
 The initialization shall be similar to the one of POD types.
 Aggregate initialization shall also include the unnamed members. 
@@ -239,7 +249,7 @@ register reg : std::uint32_t
 
 reg r {42, //reg.i
 		1, //reg.l
-		3  //reg.k
+		3, //reg.k
 		2};//reg.l
 \end{lstlisting}
 This is because an anonym member of a register is exactly this: an element which
@@ -253,7 +263,7 @@ initialization of C99 can be used:
 \begin{lstlisting}
 reg r2 { .i = 42, .k = 3};
 \end{lstlisting}
-In the latter case, all not-initialized members are in an undefined state.
+In the latter case, all not-initialized members are zero.
 
 The aggregate initialization is implicitly constexpr, which allows the check of
 the register definitions by simple static assertions, i.e.:
@@ -262,50 +272,58 @@ static_assert(reg{0,0,0b11111,0} == (0b11111 << 15));
 \end{lstlisting}
 \subsection{Member Pointers}
 It should not be possible to access the member of a register via
-pointer.
-The problem is, that when derefencing a member-pointer a reference is expected.
-\begin{lstlisting}
-register reg
-{
-	int i : 2;
-	int j : 3;
-};
-
-reg r;
-auto p = &reg::j;
-auto & ref = r.*p;
-\end{lstlisting}
-
-So the question is, what type do \lstinline {p} and \lstinline {ref} have in
-this example.
-For \lstinline {p}, we can define the type \lstinline {p_t} as follows:
-\begin{lstlisting}
-typedef int reg::*p_t : 2;
-\end{lstlisting}
-Now this would be odd, but still work somewhat consistently. Especially since
-member-pointer are very sparsely specified and differ between compilers.
-However, when we derefence the type, we would get the following result:
-\begin{lstlisting}
-typedef int& : 2  ref;
-\end{lstlisting} 
-This would modify the behaviour of references to much, especially since this
-reference could also bind to \lstinline {&reg::j}. That is, we would introduce a
-lot of complex contract not very fit to imitate the behaviour of refences. That
-is, if anything member-access should be provided, it would need to be a library
-feature.\\
-This consideration was also made, when specifying the bitfields, which is the
-reason they can also not be accessed via pointer. Now this proposal makes the
-behaviour much more consistent; on the one hand, every class member can be
-accessed with a pointer. On the other hand, a register is a mask for an integer,
-so denying pointer access to members is quite conesquential.\\
-Additionally, such an access might be implemented through a library-feature,
-that is a bit-sequence-reference. This would be the content of another proposal.
+pointers or references. In an later addition this might be implemented via a
+library-feature, but this would be another proposal.
+% The problem is, that when derefencing a member-pointer a reference is expected.
+% \begin{lstlisting}
+% register reg
+% {
+% 	int i : 2;
+% 	int j : 3;
+% };
+% 
+% reg r;
+% auto p = &reg::j;
+% auto & ref = r.*p;
+% \end{lstlisting}
+% 
+% So the question is, what type do \lstinline {p} and \lstinline {ref} have in
+% this example.
+% For \lstinline {p}, we can define the type \lstinline {p_t} as follows:
+% \begin{lstlisting}
+% typedef int reg::*p_t : 2;
+% \end{lstlisting}
+% Now this would be odd, but still work somewhat consistently. Especially since
+% member-pointer are very sparsely specified and differ between compilers.
+% However, when we derefence the type, we would get the following result:
+% \begin{lstlisting}
+% typedef int& : 2  ref;
+% \end{lstlisting} 
+% This would modify the behaviour of references to much, especially since this
+% reference could also bind to \lstinline {&reg::j}. That is, we would introduce a
+% lot of complex contract not very fit to imitate the behaviour of refences. That
+% is, if anything member-access should be provided, it would need to be a library
+% feature.\\
+% This consideration was also made, when specifying the bitfields, which is the
+% reason they can also not be accessed via pointer. Now this proposal makes the
+% behaviour much more consistent; on the one hand, every class member can be
+% accessed with a pointer. On the other hand, a register is a mask for an integer,
+% so denying pointer access to members is quite conesquential.\\
+% Additionally, such an access might be implemented through a library-feature,
+% that is a bit-sequence-reference. This would be the content of another proposal.
 \subsection{Deprecate Bitfields}
 Bitfields are a language feature, that is inherited from C. It does not work
 well with C++, in fact is breaks consitency. This is because bitfields are not
 addressable, yet can be members in any class.
 Since this register proposal brings forth a language feature which
 solves the problem bitfields was designed for, bitfields can be deprecated.
+\subsection{Templated Registers}
+There is no obvious problem with templating registers, so it should be allowed.
+The same rules as for classes apply, especially concerning template
+specialization.
+This could be useful when implementing a bit structure, which may be 16 or
+32-Bit large with different layouts but the same members.
+
 \newpage
 \section{Why a language feature and not a library?}
 This question might be posed, because adding a language feature, as simple as it
@@ -335,7 +353,7 @@ char c = i;
 //c now has the value 0b11111110 
 \end{lstlisting}
 
-\subsection{Function Solution}\label{sec:fun_sol}
+\subsection{Current Solution}\label{sec:fun_sol}
 
 \begin{lstlisting}
 void set_i(volatile std::uint8_t & reg, char i)
@@ -356,35 +374,14 @@ This of course can be tweaked by using constexpr-functions to generate the
 masks and perform the shift-operations. This however does not change the core
 problem: it is a lot of unsafe code. This is especially critical, because there
 is no method to get error messages.
+Every other solution would also just be based upon those sorts of function,
+though it may wrap them into a class and/or template.
+
+
 Having a register solution, which´s correctness
-can be checked by a static\_assert is therefor a huge improvement.
+can be checked by a static\_assert is therefore a huge improvement.
 
-\subsection{Object Solution}
-Now it might seem, that we could use a class construction, but this comes with a
-few problems. In order to access the value we can put it into a member-variable,
-that is like the following:
-\begin{lstlisting}
-struct register_t
-{
-	std::uint16_t value;
-	//access members
-}; 
-\end{lstlisting} 
-The first way to implement this is to use the functions given in
-\ref{sec:fun_sol} as member-functions. This would be similar and also have the
-problem of being very verbose and error-prone.\\
-A better solution would be to implement the member-access via a
-property-class template. The problem here is that such a class template would
-need to hold a reference to the actual value. This would require unnecessary
-memory and introduce an additional indirection.\\
-To solve that, we could pass a pointer to the required address as a template
-parameter. This would be fast, but then the struct could not be copied.\\
-A last and very strange solution is, to put the register value inside a union
-with the properties. Then the properties can cast the this-pointer and access
-this to the register value. This would work, since the values of the union all
-exist in the same memory. This is however a bad solution and requires a lot of
-\lstinline {reinterpret_cast}s.
-
+%\input{standard}
   
 
 \end{document}

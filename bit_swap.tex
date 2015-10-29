@@ -69,14 +69,16 @@ The core proposal is two provide two functions,
   \item \lstinline {std::bit_swap}
   \item \lstinline {std::byte_swap}
 \end{itemize}
-for each integer type. Though they perform different tasks 
-
+for each integer type. Though they perform different tasks they are related in
+their task. Since there are other proposals, as for example \lstinline
+{bit_reference}, we propose to add a header named \lstinline {<bit>}, which
+ought to contain all utilities related to bit manipulation.
 \subsection{bit\_swap}
 The bit\_swap function shall take a reference to an integer type as argument and
 return a value with the same bits in the opposite order of the same type.
 \begin{lstlisting}
 std::uint16_t i = 0b1110001111100001;
-auto _i = std::bit_swap(i);
+auto _i = std::bit_swap(i); 
 assert(_i == 0b1000011111000111);
 \end{lstlisting}
 \subsection{byte\_swap}
