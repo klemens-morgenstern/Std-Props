@@ -1,42 +1,41 @@
 %%This is a very basic article template.
 %%There is just one section and two subsections.
-\documentclass{scrreprt}
+\documentclass{report}
 
-%%\usepackage{listings}
-%%\usepackage{color}
-%%\usepackage[margin=0.25in]{geometry}
-%%\usepackage{relsize}
-%%\usepackage{hyperref}
-%%\usepackage{backnaur}
-%%\usepackage{marginnote} 
+\usepackage{listings}
+\usepackage{color}
+\usepackage[margin=0.25in]{geometry}
+\usepackage{relsize}
+\usepackage{hyperref}
+\usepackage{backnaur}
+\usepackage{marginnote} 
  
 
-\usepackage[american]
-           {babel}        % needed for iso dates
-\usepackage[iso,american]
-           {isodate}      % use iso format for dates
-\usepackage{listings}     % code listings
-\usepackage{longtable}    % auto-breaking tables
-\usepackage{ltcaption}    % fix captions for long tables
-\usepackage{booktabs}     % fancy tables
-\usepackage{relsize}      % provide relative font size changes
-\usepackage{underscore}   % remove special status of '_' in ordinary text
-\usepackage{verbatim}     % improved verbatim environment
-\usepackage{parskip}      % handle non-indented paragraphs "properly"
-\usepackage{array}        % new column definitions for tables
-\usepackage[normalem]{ulem}
-\usepackage{color}        % define colors for strikeouts and underlines
-\usepackage{amsmath}      % additional math symbols
-\usepackage{mathrsfs}     % mathscr font
-\usepackage{microtype}
-\usepackage{multicol}
-\usepackage{xspace}
-\usepackage{fixme}
-\usepackage{lmodern}
-\usepackage[T1]{fontenc}
-\usepackage[pdftex, final]{graphicx}
-\usepackage{hyperref} 
-\usepackage{memhfixc}     % fix interactions between hyperref and memoir
+%\usepackage[american]
+%           {babel}        % needed for iso dates
+%\usepackage[iso,american]
+%           {isodate}      % use iso format for dates
+%\usepackage{listings}     % code listings
+%\usepackage{longtable}    % auto-breaking tables
+%\usepackage{ltcaption}    % fix captions for long tables
+%\usepackage{booktabs}     % fancy tables
+%\usepackage{relsize}      % provide relative font size changes
+%\usepackage{underscore}   % remove special status of '_' in ordinary text
+%\usepackage{verbatim}     % improved verbatim environment
+%\usepackage{parskip}      % handle non-indented paragraphs "properly"
+%\usepackage{array}        % new column definitions for tables
+%\usepackage[normalem]{ulem}
+%\usepackage{color}        % define colors for strikeouts and underlines
+%\usepackage{amsmath}      % additional math symbols
+%\usepackage{mathrsfs}     % mathscr font
+%\usepackage{microtype}
+%\usepackage{multicol}
+%\usepackage{xspace}
+%\usepackage{fixme}
+%\usepackage{lmodern}
+%\usepackage[T1]{fontenc}
+%\usepackage[pdftex, final]{graphicx}
+%\usepackage{hyperref} 
 
 
 \lstset{language=C++, tabsize=4}
@@ -66,75 +65,66 @@
           \end{tabular}
 }
 
+\maketitle
+
 \newpage
 
 
 \tableofcontents
 
 \chapter*{Abstract}
- This paper proposes a new language feature, registers. Registers shall replace
-bitfields, which should be deprecated. It will thereby provide an easy and
-typesafe way to access bits, while keeping the C++ semantics
-consistent. It will not introduce new keywords, but a reuse 
-``register'', which is already deprecated (as for C++17).
+ This paper proposes a new language feature, registers. Registers shall replace bitfields, which should be deprecated. It will thereby provide an easy and typesafe way to access heterogeneous bit-sequences, while keeping the C++ semantics consistent. It will not introduce new keywords, but a reuse ``register'', which is deprecated since C++17.
 
 \chapter{Motivation}
-In current C++, there is no standard way to model sequences of bits, if they
-are different from the standarized integral type. Especially hardware
-registers are often sequences of fundamental types, with length of bits
-differing from the fundamental types in c++.
-This problem needs a solution, which allows the program to
-access such sequence in a fast and type-safe way. 
-It should also be remarked, that this is often also required to access a
-part of the memory with a fixed address. Hence having no byte-offset is crucial.
-Additionally, this kind of problem also occurs when writing low-level
-communication, where reducing the bit-size is important.
-At the moment there are two used solutions for this problems.
+In current C++, there is no portable standard way to model sequences of bits, if they are different from the standarized integral type. For the purpose of this paper, they will be called registers, i.e. a register is a heterogeneous bit-sequence with defined positions for the different parts.
+Registers are used in low-level programs for communication with the hardware (hardware-registers), inter-device communication through bus systems or just to save memory. From this follow a few requirements, one of them being portability (since different devices might use the same registers to communicate) and more elaborate guarantees for accessing hardware registers, which will be discusses later. There is no C++ langauge feature to represent that, which is why this paper proposes a language addition.
+
+
+
 \section{Bitfields}
-A popular solution are bitfields, which are members of compound types:
+A popular solution are bitfields, which are members of compound types, where integral member get assigned a length in bit.
 \begin{lstlisting}
 struct bitfield
 {
-	int x : 14;
-	unsigned y : 12;
+    int x : 14;
+    unsigned y : 12;
 };
 \end{lstlisting}
-The problem with this approach is, that the standard doesn't enforce any
-aligment, i.e. the compiler may put the bits in an undefined order with
-undefined padding bits in-between.
-This is on purpose, since bitfields were introduced to allow the saving of memory. But this
-makes the bitfield useless for hardware-access, if no additional
-compiler extension is used (e.g. \lstinline {__attribute__((packed))} for gcc).
-A bitfield is a non-addressable member of any compound type. 
-Therefore there is no given guarantee for any effect on the alignment with the
-existance of a bitfield.
-This is confusing and inconsistent, since no member-pointers can be used for
-the bitfields which behave like regular members in all other use cases. 
-If this proposal gets approved, bitfields used for the implemention of
-hardware-register access can easily be migrated to registers. Bitfields used in
-other classes, i.e. a mixed style, can and should be changed into regular
-members. Therefore bitfiels should be deprecated.
+A bitfield is a non-addressable member of any compound type.  Therefore there is no given guarantee for any effect on the alignment with the existance of a bitfield.
+This is confusing and inconsistent, since no member-pointers can be used for the bitfields which behave like regular members in all other use cases. 
+If this proposal gets approved, bitfields used for the implemention of hardware-register access can easily be migrated to registers. Bitfields used in
+other classes, i.e. a mixed style, can and should be changed into regular members.
+
+The problem with this approach is, that the standard doesn't enforce any aligment, i.e. the compiler may put the bits in an undefined order with undefined padding bits in-between.
+This is on purpose, since bitfields were introduced to allow the saving of memory. But this makes the bitfield useless for hardware-access, if no additional compiler extension is used (e.g. \lstinline{__attribute__((packed))} for gcc). Thus they are not portable. In addition the compiler is free to implement the write in very different ways for optimization, e.g. there might be several write or read operations generated from accessing a bitfield. I.e. the compiler might implement an assigned of \lstinline {y} in another way than expected (if b is zero):
+
+\begin{lstlisting}
+//b.y = 42
+//expected way
+b = (42 << 14)  |  (b & 0b111111111111);
+//unexpected way, but also valid
+b &= 0b111111111111;
+b |= (41 << 14);
+\end{lstlisting}
+
+Given that it is obvious that bitfields are not a proper solution for hardware-interaction. That they are widely used is more based on concidence in implementation, than a reliable language standard.
+
+Therefore bitfiedls should be deprecated if registers are added.
+\newpage
 \section{Masking \& Shifting}
-The more popular approach is to introduce masks and offsets, which are constant
-expressions. 
-An example would look like this:
+The more popular approach is to introduce masks and offsets, which are constant expressions. 
+An example could look like this:
 \begin{lstlisting}
 //old value
 old_value = (MASK & some_register) >> OFFSET ;
 //write
 some_register = (~MASK & some_register) 
-			  | (new_value << OFFSET);  
+                         | (new_value << OFFSET);  
 \end{lstlisting}
-The example, despite getting no error for using the wrong mask or offset,
-works with pure integral-values. Hence no type-safety (as for example
-introduced by scoped enums) is provided.
-This approach is unsafe in several ways and rather hard to maintain.
-This can be optimized by using the preprocessor or template functions, but the
-amount of boiler-plate code is still rather high. It's additionally rather hard
-to debug, because no error-message are provided.
+The example, despite getting no error for using the wrong mask or offset, works with pure integral-values. Hence no type-safety (as for example introduced by scoped enums) is provided. This approach is unsafe in several ways and rather hard to maintain. This can be optimized by using the preprocessor or template functions, but the amount of boiler-plate code is still high. In addition it's hard to debug, because no error-message are provided, if a wrong mask or offset is used. In addition the optimizer might work generate code that is not desired, regarding the hardware register requirements discusses below.
+
 \chapter{Solution}
-The solution is to introduce a new language feature, called register. The
-syntax shall look like this:
+The solution is to introduce a new language feature, called register. The syntax shall look like this:
 
 \begin{lstlisting}
 register my_reg
@@ -143,30 +133,16 @@ register my_reg
 	int j : 11;
 };
 \end{lstlisting}
-This looks like the bit-field, while only the use of the \lstinline {register}
-keyword is new.
+This looks like the bit-field, while only the use of the \lstinline {register} keyword is new.
+
 \section{Basic rules}
-A register will alway use an underlying integer-type, \lstinline {int} if not
-specified otherwise. It can also be converted to the underlying type by using a
-\lstinline {static_cast} et vice versa.
-When writing an element of the register, it gives a guarantee, that the
-underlying integral type is written exactly once, though it maybe read several
-times. 
-This is because the register is ment to be access the direct hardware. With
-undefined states in between it can yield unexpected behaviour.
-For a volatile access of the register, only one read access is allowed,
-including the write operations.
-This definition applies to the way the register masks the integer, so it may
-still need more than one operation if the value underneath does. 
-That is writing an \lstinline {std::uint64_t} on a 32-bit machine might still take two
-write-operations, and would then result in a \lstinline {register} based on
-\lstinline {std::uint64_t} needing two write operations. This would however
-fulfill the requirement of writing a register the same way as the underlying
-integer.
-This mechanic is needed, when reading a hardware register, because it
-may change at any point in-time. That is, a way to obtain consistent data is
-necessary.
+When writing an element of the register, it gives a guarantee, that the underlying integral type is written exactly once, though it maybe read several times. This is because the register is meant to be access the direct hardware. With undefined states in between it can yield unexpected behaviour. For a volatile access of the register, only one read access is allowed, including the write operation, i.e. when writing a volatile register, the register can only be read once.\\
+This mechanic is needed, when reading a hardware register, because it may change at any point in-time. That is, a way to obtain consistent data is necessary. In addition, there are hardware registers for which reading triggers an action, so additional reads can trigger unwanted behaviour.\\
+Padding may not be added by the compiler.
+
 \section{Underlying Type}
+A register will alway use an underlying integer-type, \lstinline {int} if not specified otherwise. It can also be converted to the underlying type by using a \lstinline {static_cast} et vice versa. When the input value is declared volatile, the copy for the cast shall be done following before mentioned defined access rules.\\
+If cast to a reference of the underlying type or the other way around, it shall not make a copy. There is no implicit conversion, so a register cannot use an operator of the underlying type.\\
 The underlying type may be statet explicitly, like for enumerators.
 If none is declared int is used.
 \begin{lstlisting}
@@ -176,19 +152,14 @@ register my_reg : unsigned long long
 	int x : 12;
 };
 \end{lstlisting}
-Exceeding the size of the underlying type by the element definition shall yield
-an error.\\
-A register, as well as a reference or a pointer to a register, may be converted
-to the underlying type (or a reference or pointer) to the underlying type via a
-\lstinline {static_cast}. There is no implicit conversion, so a register cannot
-use an operator of the underlying type.
-It may of course have it's own operators.
+If the underlying type is a valid C++ type, but cannot implement these rules for a register, it shall be an invalid underlying type (e.g. \lstinline {std::uint64_t} on an ARM).
+Exceeding the size of the underlying type by the element definition shall yield an error.\\
+
+
 %\newpage
 \section{Member types}
-Every type that can be reduced to an integral value shall be a valid type for a
-register. Those types can be mixed with no effect for the alignment. 
-Additionally, using a bool in a register shall always result in the bool using
-one bit. 
+Every type that can be reduced to an integral value shall be a valid type for a register. Those types can be mixed with no effect for the alignment. 
+Additionally, using a bool in a register shall always result in the bool using one bit. 
 
 \begin{lstlisting}[label=lst:cplx]
 enum class some_enum { x,y,z};
@@ -203,8 +174,7 @@ register reg : std::uint16_t
 \end{lstlisting}
 
 \section{Unnamed members}
-Similar to C-Bitfields, unnamed members shall be allowed, to implement a
-padding.
+Similar to C-Bitfields, unnamed members shall be allowed, to implement an explicit padding.
 Additionally, an unnamed member may have a size of zero. The size will pad the
 current bit-position up to the next position of a full byte, i.e. a multiple of
 8.
@@ -225,7 +195,9 @@ Byte  & \multicolumn{8}{c|}{0} & \multicolumn{8}{c|}{1} \\\hline
 Usage & \multicolumn{2}{c|}{i} & \multicolumn{2}{c|}{/} & \multicolumn{2}{c|}{j}
 & \multicolumn{2}{c|}{/}  & \multicolumn{3}{c|}{k} & \multicolumn{5}{c|}{/} 
 \end{tabular}
+\\
 The state of an unnamed member is always undefined. 
+
 \section{Signed Interpretation}
 The interpretation of signed elements in registers follows the same rules as for
 bitfields. If the value is signed it is interpreted as a two's complement.
@@ -233,16 +205,19 @@ bitfields. If the value is signed it is interpreted as a two's complement.
 That is, given a element with 3 bits, which has the value \lstinline {0b101}
 will be converted into a \lstinline {unsigned char} of the value \lstinline
 {0b11111101}.
+
 \section{Class rules}
 Unlike enumerators, a register can be interpreted as a form of class.
 Hence the proposal is, to apply the same rules as for POD-structs.
 That is: a register may not have custom constructors or destructors,
 not virtual functions and no custom assign operation. It may however have
 member-functions and operators.
+
+For now, a register shall not be inhertable, but can be a member of any class. If the experience shows that inheritance can make sense, it might be added in a future revision.
+
 \section{Conversions}
-By default the register is explicitly convertible (i.e. \lstinline 
-{static_cast} ) to the underlying integer et vice versa. Implicit conversions
-are not possible.
+By default the register is explicitly convertible (i.e. \lstinline {static_cast} ) to the underlying integer et vice versa. Implicit conversions are not possible, unless defined as  a conversion operator.
+
 \section{Bit-Endianess}
 The bit-order of the register shall be according to the endianess of the
 target-platform. That is the first entry always starts with the lowest
@@ -260,6 +235,7 @@ static_assert(static_cast<unsigned char>(r1) == 0b00000001);
 \end{lstlisting}
 Which of course means, that the value representation in C++ will be 0b00000001,
 though the machine may store this differently.
+
 \section{Byte-Endianess}
 The byte-order shall be similar to the bits, that is conform to the C++
 representation.
@@ -291,8 +267,7 @@ reg r {42, //reg.i
 		3};//reg.k
 
 \end{lstlisting}
-Alternativly, the explicit struct
-initialization of C99 can be used:
+Alternativly, the explicit struct initialization of C99 can be used:
 \begin{lstlisting}
 reg r2 { .i = 42, .k = 3};
 \end{lstlisting}
@@ -301,23 +276,20 @@ the register definitions by simple static assertions, i.e.:
 \begin{lstlisting}
 static_assert(reg{0,0,0b11111,0} == reg(0b11111 << 15));  
 \end{lstlisting}
-As a third way, the 
+
+These rules shall also apply to assignments, i.e. \lstinline|r = {42,3};|.
+
 \section{Member Pointers}
-It should not be possible to access the member of a register via
-pointers or references. In an later addition this might be implemented as an
-library-feature, but this would be another proposal.
+It should not be possible to access the member of a register via pointers or references. In an later addition this could be implemented as an library-feature, but this would be another proposal based on experience with registers.
+
 \section{Deprecate Bitfields}
-Bitfields are a language feature, that is inherited from C. It does not work
-well with C++, in fact it breaks consitency. This is because
-bitfields can not be pointed to, yet can be members in any class.
-Since this docuemtn proposes a language feature which
-solves the problem bitfields was designed for, bitfields can be deprecated.
+Bitfields are a language feature, that is inherited from C. It does not work well with C++, in fact it breaks consitency. This is because bitfields can not be pointed to, yet can be members in any class (unlike registers). Since this document proposes a language feature which solves the problem bitfields was designed for, bitfields can be deprecated.
+
 \section{Templated Registers}
 There is no obvious problem with templating registers, so it should be allowed.
-The same rules as for classes apply, especially concerning template
-specialization.
-This could be useful when implementing a bit structure, which may be 16 or
-32-Bit large with different layouts but the same members.
+The same rules as for classes apply, especially concerning template specialization.
+This could be useful when implementing a bit structure, which may be 16 or 32-Bit large with different layouts but the same members.
+
 \chapter{Impact on the standard}
 This proposal aims to reuse registers, which would move make this no longer
 deprecated. It does also aim to deprecate bit-fields, which would make
@@ -326,9 +298,7 @@ Additionally a new type of class-declaration would need to be added.
 
 \chapter{Design Decisions}
 \section{Conversions}
-Implicit conversions are not part of the proposal, because they would need to
-include implicitly constructing a register from the underlying type. This would
-introduce an ambigious case, as shown below:
+Implicit conversions are not part of the proposal, because they would need to include implicitly constructing a register from the underlying type. This would introduce an ambigious case, as shown below:
 
 \begin{lstlisting}
 register reg : int
@@ -339,157 +309,156 @@ register reg : int
 };
 
 reg r{2};
+//essentially the same:
+reg r = static_cast<reg>(2);
 \end{lstlisting}
 
-Now, as defined by the POD rules, this would yield an assignment of \lstinline 
-{reg.r} to 2. But if we were to allow the construction of reg from int, it could
+Now, as defined by the POD rules, this would yield an assignment of \lstinline  {reg.r} to 2. But if we were to allow the construction of reg from int, it could
 also that, which would render the expression ambiguous.
-Since no implicit construction from an integer can be provided, while handling
-the registers as POD types, it is necessary to only allow explicit static casts.
+Since no implicit construction from an integer can be provided, while handling the registers as POD types, it is necessary to only allow explicit static casts.
+
 \section{Why a language feature and not a library?}
-This question might be posed, because adding a language feature, as simple as it
-might be, always makes the language more complex. However, building a library
-to implement this sort of thing is rather complicated, since we it should
-have no overhead. Implementing these features in the compiler on the other hand
-seems doable, since most of the necessary features are already present.
 
-All implementations of this would be implemented by function-calls,
-though they may be implemented in a smarter way. So a front-end could look like
-this (as proposed by Vicente J. Botet Escriba):
-\newpage
-\begin{lstlisting}
-register my_reg : std::uint8_t
-{
-	char : 2;
-	char i : 4;
-	bool b ;
-	unsigned int u : 1;
-};
-my_reg r;
+Now even considering the benefit, the question remains if it couldn't be a library instead of a language feature. The problem are the access guarantees, which were explained and have good reason for hardware access. The only way to do that properly is to insert assembly into the library.
 
-//library solution
-bit_tuple<entry<void, 2>, entry<char, 4>, entry<bool>, entry<unsigned int, 1>>
-tup;
-
-r.i = 2;
-set<0>(tup, 2);
-
-auto x1 = r.b;
-auto x2 = get<1>(tup);
-\end{lstlisting}
-
-However: the underlying backend would still implemented with functions as shown
-below.
-
-\begin{lstlisting}
-void set_i(volatile std::uint8_t & reg, char i)
-{
-	//    mask the register | mask i  | shift to pos
-	reg = (reg & ~0b111100) | ((i & 0b1111) << 2);
-}
-char get_i(const volatile std::uint8_t & reg)
-{
-	//       mask the bits     | shift to pos
-	char i = (reg & 0b111100) >> 2;
-	// now we need to add the sign
-	if (i & 0b1000) i |= 0b11110000;
-	return i;
-};
-\end{lstlisting}
-\newpage
-
-First of all, it should be noted that this is a lot of boiler-plate code. But
-obviously, that can be taken care of by a well-constructed library. If we do
-however compare the assembly generated, it differs. As an example we use the
-\textbf{arm-gcc-none-eabi 4.8.2} with \textbf{-O3}. To be fair, the difference
-is not as notable with an x86 target, where sometimes the manual code is
-shorter. Since ARM is a RISC machine, we can assume, that each instruction takes
-about one CPU-cycle. As comparison we use a C-bitfield, which makes the example
-look like this:
-\begin{lstlisting}
-#include <cstdint>
-
-using namespace std;
-
-struct __attribute__((packed)) my_reg
-{
-	char : 2;
-	volatile signed char i : 4;
-	bool b : 1;
-	int8_t u : 1;
-};
-
-static_assert(sizeof(my_reg) == 1, "");
-
-void set_i(my_reg & r, char i) { r.i = i; }
-void set_i(volatile std::uint8_t & reg, char i)
-{
-	//    mask the register | mask i  | shift to pos
-	reg = (reg & ~0b111100) | ((i & 0b1111) << 2);
-}
-
-char get_i(const my_reg & r) { return r.i; }
-char get_i(const volatile std::uint8_t & reg_in)
-{
-	auto reg = reg_in; //copy it, so we only have one access.
-	//       mask the bits     | shift to pos
-	char i = ((reg & 0b111100) >> 2)
-			  //add the sign	
-      		 | ((reg & 0b100000) ?  0b11110000 : 0);
-	return i;
-};
-\end{lstlisting}
-\newpage
-The produces assembly:
-\begin{lstlisting}
-set_i(my_reg&, char):
-        ldrb    r3, [r0]        @ zero_extendqisi2
-        bfi     r3, r1, #2, #4
-        strb    r3, [r0]
-        bx      lr
-set_i(unsigned char volatile&, char):
-        and     r3, r1, #15
-        ldrb    r1, [r0]        @ zero_extendqisi2
-        and     r1, r1, #195
-        orr     r1, r1, r3, lsl #2
-        strb    r1, [r0]
-        bx      lr
-get_i(my_reg const&):
-        ldrb    r0, [r0]        @ zero_extendqisi2
-        sbfx    r0, r0, #2, #4
-        uxtb    r0, r0
-        bx      lr
-get_i(unsigned char const volatile&):
-        ldrb    r0, [r0]        @ zero_extendqisi2
-        uxtb    r0, r0
-        tst     r0, #32
-        ubfx    r0, r0, #2, #4
-        ite     ne
-        mvnne   r3, #15
-        moveq   r3, #0
-        orrs    r0, r0, r3
-        uxtb    r0, r0
-        bx      lr
-
-\end{lstlisting}
-
-The compiler does not find the right
-optimization in the set-function. The \lstinline {bfi} does provide the
-command to insert a particular set of bits into a value.
-
-For the get function the compiler does not optimize correctly either for the get
-function - the \lstinline {sbfx} command is made explicitly to load a signed
-value from a register. However, this formulation in C++ does not convey that to
-the compiler.
-
-Please note, that a register access is the lowest level of communication on an
-embeded program. The unnecessary operations for the get-function can slow down
-the performance immensly, which is a strong argument for the new feature.
-Especially, since the compiler can do the task through bitfields, but they have
-all the problems discussed earlier. A library of course could utilize inline-assembler to get the same result. But
-this would mean, that it is actually not a pure C++ library, and thus it
-provides a strong case to add this to the standard.
-
-%\input{standard}
+%This question might be posed, because adding a language feature, as simple as it
+%might be, always makes the language more complex. However, building a library
+%to implement this sort of thing is rather complicated, since we it should
+%have no overhead. Implementing these features in the compiler on the other hand
+%seems doable, since most of the necessary features are already present.
+%
+%All implementations of this would be implemented by function-calls,
+%though they may be implemented in a smarter way. So a front-end could look like
+%this (as proposed by Vicente J. Botet Escriba):
+%\newpage
+%\begin{lstlisting}
+%register my_reg : std::uint8_t
+%{
+%	char : 2;
+%	char i : 4;
+%	bool b ;
+%	unsigned int u : 1;
+%};
+%my_reg r;
+%
+%//library solution
+%bit_tuple<entry<void, 2>, entry<char, 4>, entry<bool>, entry<unsigned int, 1>>
+%tup;
+%
+%r.i = 2;
+%set<0>(tup, 2);
+%
+%auto x1 = r.b;
+%auto x2 = get<1>(tup);
+%\end{lstlisting}
+%
+%However: the underlying backend would still implemented with functions as shown
+%below.
+%
+%\begin{lstlisting}
+%void set_i(volatile std::uint8_t & reg, char i)
+%{
+%	//    mask the register | mask i  | shift to pos
+%	reg = (reg & ~0b111100) | ((i & 0b1111) << 2);
+%}
+%char get_i(const volatile std::uint8_t & reg)
+%{
+%	//       mask the bits     | shift to pos
+%	char i = (reg & 0b111100) >> 2;
+%	// now we need to add the sign
+%	if (i & 0b1000) i |= 0b11110000;
+%	return i;
+%};
+%\end{lstlisting}
+%\newpage
+%
+%First of all, it should be noted that this is a lot of boiler-plate code. But
+%obviously, that can be taken care of by a well-constructed library. If we do
+%however compare the assembly generated, it differs. As an example we use the
+%\textbf{arm-gcc-none-eabi 4.8.2} with \textbf{-O3}. To be fair, the difference
+%is not as notable with an x86 target, where sometimes the manual code is
+%shorter. Since ARM is a RISC machine, we can assume, that each instruction takes
+%about one CPU-cycle. As comparison we use a C-bitfield, which makes the example
+%look like this:
+%\begin{lstlisting}
+%#include <cstdint>
+%
+%using namespace std;
+%
+%struct __attribute__((packed)) my_reg
+%{
+%	char : 2;
+%	volatile signed char i : 4;
+%	bool b : 1;
+%	int8_t u : 1;
+%};
+%
+%static_assert(sizeof(my_reg) == 1, "");
+%
+%void set_i(my_reg & r, char i) { r.i = i; }
+%void set_i(volatile std::uint8_t & reg, char i)
+%{
+%	//    mask the register | mask i  | shift to pos
+%	reg = (reg & ~0b111100) | ((i & 0b1111) << 2);
+%}
+%
+%char get_i(const my_reg & r) { return r.i; }
+%char get_i(const volatile std::uint8_t & reg_in)
+%{
+%	auto reg = reg_in; //copy it, so we only have one access.
+%	//       mask the bits     | shift to pos
+%	char i = ((reg & 0b111100) >> 2)
+%			  //add the sign	
+%      		 | ((reg & 0b100000) ?  0b11110000 : 0);
+%	return i;
+%};
+%\end{lstlisting}
+%\newpage
+%The produces assembly:
+%\begin{lstlisting}
+%set_i(my_reg&, char):
+%        ldrb    r3, [r0]        @ zero_extendqisi2
+%        bfi     r3, r1, #2, #4
+%        strb    r3, [r0]
+%        bx      lr
+%set_i(unsigned char volatile&, char):
+%        and     r3, r1, #15
+%        ldrb    r1, [r0]        @ zero_extendqisi2
+%        and     r1, r1, #195
+%        orr     r1, r1, r3, lsl #2
+%        strb    r1, [r0]
+%        bx      lr
+%get_i(my_reg const&):
+%        ldrb    r0, [r0]        @ zero_extendqisi2
+%        sbfx    r0, r0, #2, #4
+%        uxtb    r0, r0
+%        bx      lr
+%get_i(unsigned char const volatile&):
+%        ldrb    r0, [r0]        @ zero_extendqisi2
+%        uxtb    r0, r0
+%        tst     r0, #32
+%        ubfx    r0, r0, #2, #4
+%        ite     ne
+%        mvnne   r3, #15
+%        moveq   r3, #0
+%        orrs    r0, r0, r3
+%        uxtb    r0, r0
+%        bx      lr
+%
+%\end{lstlisting}
+%
+%The compiler does not find the right optimization in the set-function. The \lstinline {bfi} does provide the command to insert a particular set of bits into a value.
+%
+%For the get function the compiler does not optimize correctly either for the get function - the \lstinline {sbfx} command is made explicitly to load a signed value from a register. However, this formulation in C++ does not convey that to the compiler.
+%
+%Please note, that a register access is the lowest level of communication on an
+%embeded program. The unnecessary operations for the get-function can slow down
+%the performance immensly, which is a strong argument for the new feature.
+%Especially, since the compiler can do the task through bitfields, but they have
+%all the problems discussed earlier. A library of course could utilize inline-assembler to get the same result. But
+%this would mean, that it is actually not a pure C++ library, and thus it
+%provides a strong case to add this to the standard.
+%
+%%\input{standard}
  
 \end{document}
